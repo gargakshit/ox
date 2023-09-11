@@ -1,0 +1,4 @@
+(executable
+ (public_name ox)
+ (name main)
+ (libraries ox))

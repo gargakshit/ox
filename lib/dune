@@ -1,0 +1,4 @@
+(library
+ (name ox)
+ (preprocess
+  (pps ppx_deriving.show ppx_sexp_conv)))
