@@ -7,7 +7,8 @@ and statement =
   | Print of expr (* print expr; *)
   | Expression of expr (* expr; *)
   | VarDeclaration of Token.t * expr (* var Token.Ident = <initializer> expr; *)
-  | Block of statement list (* { ... } *)
+  | Block of statement list [@sexp.list] (* { ... } *)
+  | If of expr * statement * statement option (* if (guard) ... else ... *)
 
 and expr =
   | Binary of expr * Token.t * expr

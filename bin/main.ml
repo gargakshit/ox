@@ -22,6 +22,15 @@ let () =
     \        var b = 10;\n\
     \        print b;\n\
     \    }\n\
+    \    if (true and true) {\n\
+    \        print true;\n\
+    \    } else {\n\
+    \        print false;\n\
+    \    }\n\
+    \    print true and \"Lol\";\n\
+    \    print false and \"Lol\";\n\
+    \    print true or \"Lol\";\n\
+    \    print false or \"Lol\";\n\
     \  "
   in
   let () = prerr_string "Source: " in

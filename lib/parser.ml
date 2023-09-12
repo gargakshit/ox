@@ -9,7 +9,7 @@ let expect_assignment_target = function
 let rec expression parser = assignment parser
 
 and assignment parser =
-  let* parser, target = equality parser in
+  let* parser, target = or' parser in
   match peek parser with
   | Token.Equal ->
       let parser = advance parser in
@@ -17,6 +17,32 @@ and assignment parser =
       let* name = expect_assignment_target target in
       Ok (parser, Ast.Assignment (name, value))
   | _ -> Ok (parser, target)
+
+and or' parser =
+  let rec or'' parser expr =
+    let operator = peek parser in
+    match operator with
+    | Token.Or ->
+        let parser = advance parser in
+        let* parser, right = and' parser in
+        or'' parser (Ast.Binary (expr, operator, right))
+    | _ -> Ok (parser, expr)
+  in
+  let* parser, expr = and' parser in
+  or'' parser expr
+
+and and' parser =
+  let rec and'' parser expr =
+    let operator = peek parser in
+    match operator with
+    | Token.And ->
+        let parser = advance parser in
+        let* parser, right = equality parser in
+        and'' parser (Ast.Binary (expr, operator, right))
+    | _ -> Ok (parser, expr)
+  in
+  let* parser, expr = equality parser in
+  and'' parser expr
 
 and equality parser =
   let rec equality' parser expr =
@@ -144,13 +170,25 @@ and var_declaration parser =
 
 and statement parser =
   match peek parser with
-  | Token.Print ->
-      let parser = advance parser in
-      print_statement parser
-  | Token.LBrace ->
-      let parser = advance parser in
-      block_stmt parser
+  | Token.Print -> print_statement (advance parser)
+  | Token.LBrace -> block_stmt (advance parser)
+  | Token.If -> if_stmt (advance parser)
   | _ -> expression_statement parser
+
+and if_stmt parser =
+  let* parser = consume parser Token.LParen "Expected '(' after if." in
+  let* parser, guard = expression parser in
+  let* parser = consume parser Token.RParen "Expected ')' after the guard." in
+  let* parser, then_stmt = statement parser in
+  let token = peek parser in
+  let* parser, else_stmt =
+    if token = Token.Else then
+      let parser = advance parser in
+      let* parser, else_stmt = statement parser in
+      Ok (parser, Some else_stmt)
+    else Ok (parser, None)
+  in
+  Ok (parser, Ast.If (guard, then_stmt, else_stmt))
 
 and block_stmt parser =
   let* parser, stmts = parse_stmts parser [] in

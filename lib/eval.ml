@@ -17,6 +17,8 @@ let is_comparison = function
   | Token.Greater | Token.GreaterEqual | Token.Less | Token.LessEqual -> true
   | _ -> false
 
+let is_logic = function Token.And | Token.Or -> true | _ -> false
+
 let is_truthy = function
   | Boxed.Bool true -> true
   | Boxed.Bool false | Nil -> false
@@ -60,6 +62,16 @@ and eval_stmt env = function
       Ok ()
   | VarDeclaration (ident, expr) -> eval_var_decl env ident expr
   | Block stmts -> eval_block env stmts
+  | If (guard, then_stmt, else_stmt) ->
+      eval_if_stmt env guard then_stmt else_stmt
+
+and eval_if_stmt env guard then_stmt else_stmt =
+  let* guard = eval_expr env guard in
+  if is_truthy guard then eval_stmt env then_stmt
+  else
+    match else_stmt with
+    | Some else_stmt -> eval_stmt env else_stmt
+    | None -> Ok ()
 
 and eval_block env = eval_stmts (Env.fork env)
 
@@ -79,9 +91,19 @@ and eval_expr env = function
       binary_comparison env left operator right
   | Binary (left, operator, right) when is_equality operator ->
       binary_equality env left operator right
+  | Binary (left, operator, right) when is_logic operator ->
+      binary_logic env left operator right
   | Variable ident -> variable env ident
   | Assignment (ident, expr) -> assignment env ident expr
   | Binary _ | Unary _ -> failwith "Unreachable."
+
+and binary_logic env left operator right =
+  let* left = eval_expr env left in
+  let left = is_truthy left in
+  match operator with
+  | Token.And when not left -> Ok (Boxed.Bool true)
+  | Token.Or when left -> Ok (Boxed.Bool true)
+  | _ -> eval_expr env right
 
 and assignment env ident expr =
   let* name = require_ident ident in
