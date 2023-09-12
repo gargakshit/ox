@@ -2,7 +2,21 @@ open Util
 
 type parser = { remaining : Token.t list }
 
-let rec expression parser = equality parser
+let expect_assignment_target = function
+  | Ast.Variable name -> Ok name
+  | _ -> Error "Invalid assignment target."
+
+let rec expression parser = assignment parser
+
+and assignment parser =
+  let* parser, target = equality parser in
+  match peek parser with
+  | Token.Equal ->
+      let parser = advance parser in
+      let* parser, value = assignment parser in
+      let* name = expect_assignment_target target in
+      Ok (parser, Ast.Assignment (name, value))
+  | _ -> Ok (parser, target)
 
 and equality parser =
   let rec equality' parser expr =
@@ -81,6 +95,7 @@ and primary parser =
         consume parser Token.RParen "Expected ')' after expression."
       in
       Ok (parser, Ast.Grouping expr)
+  | Token.Ident _ -> Ok (parser, Ast.Variable token)
   | token -> Error (Printf.sprintf "Unexpected token '%s'." (Token.show token))
 
 and consume parser token error =
@@ -90,12 +105,57 @@ and consume parser token error =
 and advance parser = { remaining = List.tl parser.remaining }
 and peek parser = List.hd parser.remaining
 
-let rec statement parser =
+and is_at_end parser =
+  match parser.remaining with [] | [ Token.Eof ] -> true | _ -> false
+
+and parse_prog parser acc =
+  if is_at_end parser then Ok (List.rev acc)
+  else
+    let* parser, stmt = stmt parser in
+    parse_prog parser (stmt :: acc)
+
+and parse_stmts parser acc =
+  if is_at_end parser then Error "Expected '}'."
+  else
+    match peek parser with
+    | Token.RBrace -> Ok (parser, List.rev acc)
+    | _ ->
+        let* parser, stmt = stmt parser in
+        parse_stmts parser (stmt :: acc)
+
+and stmt parser = declaration parser
+
+and declaration parser =
+  match peek parser with
+  | Token.Var ->
+      let parser = advance parser in
+      var_declaration parser
+  | _ -> statement parser
+
+and var_declaration parser =
+  let ident = peek parser in
+  match ident with
+  | Token.Ident _ ->
+      let parser = advance parser in
+      let* parser, expr = equal_initializer parser in
+      let* parser = expect_semicolon parser in
+      Ok (parser, Ast.VarDeclaration (ident, expr))
+  | _ -> Error "Expected identifier after var."
+
+and statement parser =
   match peek parser with
   | Token.Print ->
       let parser = advance parser in
       print_statement parser
+  | Token.LBrace ->
+      let parser = advance parser in
+      block_stmt parser
   | _ -> expression_statement parser
+
+and block_stmt parser =
+  let* parser, stmts = parse_stmts parser [] in
+  let parser = advance parser in
+  Ok (parser, Ast.Block stmts)
 
 and print_statement parser =
   let* parser, expr = expression parser in
@@ -112,6 +172,14 @@ and expect_semicolon parser =
   | Token.SemiColon -> Ok (advance parser)
   | _ -> Error "Expected ';'."
 
+and equal_initializer parser =
+  match peek parser with
+  | Token.Equal ->
+      let parser = advance parser in
+      let* parser, expr = expression parser in
+      Ok (parser, expr)
+  | _ -> Ok (parser, Literal Boxed.Nil)
+
 let parse tokens =
-  let* parser, expr = statement { remaining = tokens } in
-  Ok expr
+  let* prog = parse_prog { remaining = tokens } [] in
+  Ok prog

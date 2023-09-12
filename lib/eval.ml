@@ -1,5 +1,8 @@
 open Ast
 open Eff
+open Effect
+open Effect.Deep
+open Env
 open Util
 
 let is_arith = function
@@ -35,42 +38,73 @@ let require_str = function
   | Boxed.Str str -> Ok str
   | _ -> Error "Expected string."
 
-let is_num = function Boxed.Num _ -> true | _ -> false
-let eff_print value = Effect.perform (Eff.Ox_print value)
+let require_ident = function
+  | Token.Ident name -> Ok name
+  | _ -> Error "Expected identifier."
 
-let rec eval_stmt = function
+let is_num = function Boxed.Num _ -> true | _ -> false
+let eff_print value = perform (Eff.Ox_print value)
+
+let rec eval_stmts env = function
+  | [] -> Ok ()
+  | stmt :: rest ->
+      let* _ = eval_stmt env stmt in
+      eval_stmts env rest
+
+and eval_stmt env = function
   | Print expr ->
-      let* value = eval_expr expr in
+      let* value = eval_expr env expr in
       Ok (eff_print value)
   | Expression expr ->
-      let* value = eval_expr expr in
+      let* value = eval_expr env expr in
       Ok ()
+  | VarDeclaration (ident, expr) -> eval_var_decl env ident expr
+  | Block stmts -> eval_block env stmts
 
-and eval_expr = function
+and eval_block env = eval_stmts (Env.fork env)
+
+and eval_var_decl env ident expr =
+  let* name = require_ident ident in
+  let* value = eval_expr env expr in
+  Env.add env name value
+
+and eval_expr env = function
   | Literal lit -> Ok lit
-  | Grouping expr -> eval_expr expr
-  | Unary (Token.Bang, expr) -> unary_bang expr
-  | Unary (Token.Minus, expr) -> unary_minus expr
+  | Grouping expr -> eval_expr env expr
+  | Unary (Token.Bang, expr) -> unary_bang env expr
+  | Unary (Token.Minus, expr) -> unary_minus env expr
   | Binary (left, operator, right) when is_arith operator ->
-      binary left operator right
+      binary env left operator right
   | Binary (left, operator, right) when is_comparison operator ->
-      binary_comparison left operator right
+      binary_comparison env left operator right
   | Binary (left, operator, right) when is_equality operator ->
-      binary_equality left operator right
+      binary_equality env left operator right
+  | Variable ident -> variable env ident
+  | Assignment (ident, expr) -> assignment env ident expr
+  | Binary _ | Unary _ -> failwith "Unreachable."
+
+and assignment env ident expr =
+  let* name = require_ident ident in
+  let* value = eval_expr env expr in
+  let* () = Env.set env name value in
+  Ok value
+
+and variable env = function
+  | Token.Ident name -> Env.lookup_res env name
   | _ -> failwith "Unreachable."
 
-and unary_bang expr =
-  let* expr = eval_expr expr in
+and unary_bang env expr =
+  let* expr = eval_expr env expr in
   Ok (Boxed.Bool (is_truthy expr))
 
-and unary_minus expr =
-  let* expr = eval_expr expr in
+and unary_minus env expr =
+  let* expr = eval_expr env expr in
   let* expr = require_num expr in
   Ok (Boxed.Num (-.expr))
 
-and binary left operator right =
-  let* left = eval_expr left in
-  let* right = eval_expr right in
+and binary env left operator right =
+  let* left = eval_expr env left in
+  let* right = eval_expr env right in
   match operator with
   | Token.Minus | Token.Slash | Token.Star -> binary_arith left operator right
   | Token.Plus -> binary_plus left right
@@ -93,10 +127,10 @@ and binary_arith left operator right =
   | Token.Star -> Ok (Boxed.Num (left *. right))
   | _ -> failwith "Unreachable."
 
-and binary_comparison left operator right =
-  let* left = eval_expr left in
+and binary_comparison env left operator right =
+  let* left = eval_expr env left in
   let* left = require_num left in
-  let* right = eval_expr right in
+  let* right = eval_expr env right in
   let* right = require_num right in
   match operator with
   | Token.Greater -> Ok (Boxed.Bool (left > right))
@@ -105,13 +139,17 @@ and binary_comparison left operator right =
   | Token.LessEqual -> Ok (Boxed.Bool (left <= right))
   | _ -> failwith "Unreachable."
 
-and binary_equality left operator right =
-  let* left = eval_expr left in
-  let* right = eval_expr right in
+and binary_equality env left operator right =
+  let* left = eval_expr env left in
+  let* right = eval_expr env right in
   let eq = is_equal left right in
   match operator with
   | Token.BangEqual -> Ok (Boxed.Bool (Bool.not eq))
   | Token.EqualEqual -> Ok (Boxed.Bool eq)
   | _ -> failwith "Unreachable."
 
-let eval_program ast = Effect.Deep.match_with eval_stmt ast Eff.Default.handler
+let initial_env () = Env.init None
+
+let eval_program prog =
+  let eval () = eval_stmts (initial_env ()) prog in
+  match_with eval () Eff.Default.handler

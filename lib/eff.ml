@@ -15,7 +15,7 @@ module Default = struct
               Some
                 (fun (k : (c, _) continuation) -> continue k (ox_print value))
           | _ -> None);
-      exnc = (fun _ -> failwith "Unexpected interpreter error");
+      exnc = (fun exn -> raise exn);
       retc = (fun v -> v);
     }
 end
