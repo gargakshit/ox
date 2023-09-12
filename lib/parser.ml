@@ -104,17 +104,38 @@ and unary parser =
       let parser = advance parser in
       let* parser, expr = unary parser in
       Ok (parser, Ast.Unary (operator, expr))
-  | _ -> primary parser
+  | _ -> call parser
+
+and call parser =
+  let* parser, callee = primary parser in
+  let rec parse_arguments parser acc =
+    let* parser, expr = expression parser in
+    let token = peek parser in
+    match token with
+    | Token.Comma -> parse_arguments (advance parser) (expr :: acc)
+    | Token.RParen -> Ok (advance parser, token, List.rev acc)
+    | _ -> Error "Expected ')' after argument list."
+  in
+  match peek parser with
+  | Token.LParen ->
+      let token = peek parser in
+      let* parser, token, arguments =
+        match token with
+        | Token.RParen -> Ok (advance parser, token, [])
+        | _ -> parse_arguments parser []
+      in
+      Ok (parser, Ast.Call (callee, token, arguments, List.length arguments))
+  | _ -> Ok (parser, callee)
 
 and primary parser =
   let token = peek parser in
   let parser = advance parser in
   match token with
-  | Token.False -> Ok (parser, Ast.Literal (Boxed.Bool false))
-  | Token.True -> Ok (parser, Ast.Literal (Boxed.Bool true))
-  | Token.Nil -> Ok (parser, Ast.Literal Boxed.Nil)
-  | Token.Num num -> Ok (parser, Ast.Literal (Boxed.Num num))
-  | Token.Str str -> Ok (parser, Ast.Literal (Boxed.Str str))
+  | Token.False -> Ok (parser, Ast.Literal (Ast.Bool false))
+  | Token.True -> Ok (parser, Ast.Literal (Ast.Bool true))
+  | Token.Nil -> Ok (parser, Ast.Literal Ast.Nil)
+  | Token.Num num -> Ok (parser, Ast.Literal (Ast.Num num))
+  | Token.Str str -> Ok (parser, Ast.Literal (Ast.Str str))
   | Token.LParen ->
       let* parser, expr = expression parser in
       let* parser =
@@ -215,7 +236,7 @@ and for_stmt parser =
   in
   let condition_expr =
     match condition_expr with
-    | None -> Ast.Literal (Boxed.Bool true)
+    | None -> Ast.Literal (Ast.Bool true)
     | Some expr -> expr
   in
   let body = Ast.While (condition_expr, body) in
@@ -277,7 +298,7 @@ and equal_initializer parser =
       let parser = advance parser in
       let* parser, expr = expression parser in
       Ok (parser, expr)
-  | _ -> Ok (parser, Literal Boxed.Nil)
+  | _ -> Ok (parser, Literal Ast.Nil)
 
 let parse tokens =
   let* prog = parse_prog { remaining = tokens } [] in

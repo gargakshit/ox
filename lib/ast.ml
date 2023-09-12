@@ -15,7 +15,16 @@ and expr =
   | Binary of expr * Token.t * expr
   | Unary of Token.t * expr
   | Grouping of expr
-  | Literal of Boxed.t
+  | Literal of value
   | Variable of Token.t
   | Assignment of Token.t * expr
+  | Call of expr * Token.t * expr list * int (* callee(argument, list, ...) *)
+
+and value = Num of float | Str of string | Bool of bool | Nil
 [@@deriving show, sexp]
+
+let runtime_show_value = function
+  | Num num -> string_of_float num
+  | Str str -> str
+  | Bool b -> string_of_bool b
+  | Nil -> "nil"

@@ -1,4 +1,4 @@
-type t = { values : (string, Boxed.t) Hashtbl.t; parent : t option }
+type t = { values : (string, Ast.value) Hashtbl.t; parent : t option }
 
 let init parent = { values = Hashtbl.create 256; parent }
 let fork env = init (Some env)

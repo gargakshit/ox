@@ -1,10 +1,10 @@
 open Effect
 open Effect.Deep
 
-type _ Effect.t += Ox_print : Boxed.t -> unit Effect.t
+type _ Effect.t += Ox_print : Ast.value -> unit Effect.t
 
 module Default = struct
-  let ox_print value = print_endline (Boxed.runtime_show value)
+  let ox_print value = print_endline (Ast.runtime_show_value value)
 
   let handler =
     {

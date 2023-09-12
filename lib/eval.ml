@@ -20,31 +20,31 @@ let is_comparison = function
 let is_logic = function Token.And | Token.Or -> true | _ -> false
 
 let is_truthy = function
-  | Boxed.Bool true -> true
-  | Boxed.Bool false | Nil -> false
+  | Ast.Bool true -> true
+  | Ast.Bool false | Nil -> false
   | _ -> true
 
 let is_equal left right =
   match (left, right) with
-  | Boxed.Nil, Boxed.Nil -> true
-  | Boxed.Bool left, Boxed.Bool right -> left = right
-  | Boxed.Num left, Boxed.Num right -> left = right
-  | Boxed.Str left, Boxed.Str right -> left = right
+  | Ast.Nil, Ast.Nil -> true
+  | Ast.Bool left, Ast.Bool right -> left = right
+  | Ast.Num left, Ast.Num right -> left = right
+  | Ast.Str left, Ast.Str right -> left = right
   | _ -> false
 
 let require_num = function
-  | Boxed.Num num -> Ok num
+  | Ast.Num num -> Ok num
   | _ -> Error "Expected number."
 
 let require_str = function
-  | Boxed.Str str -> Ok str
+  | Ast.Str str -> Ok str
   | _ -> Error "Expected string."
 
 let require_ident = function
   | Token.Ident name -> Ok name
   | _ -> Error "Expected identifier."
 
-let is_num = function Boxed.Num _ -> true | _ -> false
+let is_num = function Ast.Num _ -> true | _ -> false
 let eff_print value = perform (Eff.Ox_print value)
 
 let rec eval_stmts env = function
@@ -103,14 +103,15 @@ and eval_expr env = function
       binary_logic env left operator right
   | Variable ident -> variable env ident
   | Assignment (ident, expr) -> assignment env ident expr
+  | Call (callee, _, arguments, num_args) -> failwith "Unimplemented."
   | Binary _ | Unary _ -> failwith "Unreachable."
 
 and binary_logic env left operator right =
   let* left = eval_expr env left in
   let left = is_truthy left in
   match operator with
-  | Token.And when not left -> Ok (Boxed.Bool true)
-  | Token.Or when left -> Ok (Boxed.Bool true)
+  | Token.And when not left -> Ok (Ast.Bool true)
+  | Token.Or when left -> Ok (Ast.Bool true)
   | _ -> eval_expr env right
 
 and assignment env ident expr =
@@ -125,12 +126,12 @@ and variable env = function
 
 and unary_bang env expr =
   let* expr = eval_expr env expr in
-  Ok (Boxed.Bool (is_truthy expr))
+  Ok (Ast.Bool (is_truthy expr))
 
 and unary_minus env expr =
   let* expr = eval_expr env expr in
   let* expr = require_num expr in
-  Ok (Boxed.Num (-.expr))
+  Ok (Ast.Num (-.expr))
 
 and binary env left operator right =
   let* left = eval_expr env left in
@@ -145,16 +146,16 @@ and binary_plus left right =
   else
     let* left = require_str left in
     let* right = require_str right in
-    Ok (Boxed.Str (String.cat left right))
+    Ok (Ast.Str (String.cat left right))
 
 and binary_arith left operator right =
   let* left = require_num left in
   let* right = require_num right in
   match operator with
-  | Token.Minus -> Ok (Boxed.Num (left -. right))
-  | Token.Plus -> Ok (Boxed.Num (left +. right))
-  | Token.Slash -> Ok (Boxed.Num (left /. right))
-  | Token.Star -> Ok (Boxed.Num (left *. right))
+  | Token.Minus -> Ok (Ast.Num (left -. right))
+  | Token.Plus -> Ok (Ast.Num (left +. right))
+  | Token.Slash -> Ok (Ast.Num (left /. right))
+  | Token.Star -> Ok (Ast.Num (left *. right))
   | _ -> failwith "Unreachable."
 
 and binary_comparison env left operator right =
@@ -163,10 +164,10 @@ and binary_comparison env left operator right =
   let* right = eval_expr env right in
   let* right = require_num right in
   match operator with
-  | Token.Greater -> Ok (Boxed.Bool (left > right))
-  | Token.GreaterEqual -> Ok (Boxed.Bool (left >= right))
-  | Token.Less -> Ok (Boxed.Bool (left < right))
-  | Token.LessEqual -> Ok (Boxed.Bool (left <= right))
+  | Token.Greater -> Ok (Ast.Bool (left > right))
+  | Token.GreaterEqual -> Ok (Ast.Bool (left >= right))
+  | Token.Less -> Ok (Ast.Bool (left < right))
+  | Token.LessEqual -> Ok (Ast.Bool (left <= right))
   | _ -> failwith "Unreachable."
 
 and binary_equality env left operator right =
@@ -174,8 +175,8 @@ and binary_equality env left operator right =
   let* right = eval_expr env right in
   let eq = is_equal left right in
   match operator with
-  | Token.BangEqual -> Ok (Boxed.Bool (Bool.not eq))
-  | Token.EqualEqual -> Ok (Boxed.Bool eq)
+  | Token.BangEqual -> Ok (Ast.Bool (Bool.not eq))
+  | Token.EqualEqual -> Ok (Ast.Bool eq)
   | _ -> failwith "Unreachable."
 
 let initial_env () = Env.init None
