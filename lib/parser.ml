@@ -153,9 +153,7 @@ and stmt parser = declaration parser
 
 and declaration parser =
   match peek parser with
-  | Token.Var ->
-      let parser = advance parser in
-      var_declaration parser
+  | Token.Var -> var_declaration (advance parser)
   | _ -> statement parser
 
 and var_declaration parser =
@@ -173,12 +171,75 @@ and statement parser =
   | Token.Print -> print_statement (advance parser)
   | Token.LBrace -> block_stmt (advance parser)
   | Token.If -> if_stmt (advance parser)
+  | Token.While -> while_stmt (advance parser)
+  | Token.For -> for_stmt (advance parser)
   | _ -> expression_statement parser
+
+and for_stmt parser =
+  let* parser = consume parser Token.LParen "Expected '(' after for." in
+  let* parser, initializer_stmt =
+    match peek parser with
+    | Token.SemiColon -> Ok (advance parser, None)
+    | Token.Var ->
+        let* parser, stmt = var_declaration (advance parser) in
+        Ok (parser, Some stmt)
+    | _ ->
+        let* parser, stmt = expression_statement parser in
+        Ok (parser, Some stmt)
+  in
+  let* parser, condition_expr =
+    match peek parser with
+    | Token.SemiColon -> Ok (advance parser, None)
+    | _ ->
+        let* parser, expr = expression parser in
+        let* parser =
+          consume parser Token.SemiColon "Expected ';' after the condition."
+        in
+        Ok (parser, Some expr)
+  in
+  let* parser, increment_expr =
+    match peek parser with
+    | Token.RParen -> Ok (advance parser, None)
+    | _ ->
+        let* parser, expr = expression parser in
+        let* parser =
+          consume parser Token.RParen "Expected ')' after 'for' clauses."
+        in
+        Ok (parser, Some expr)
+  in
+  let* parser, body = statement parser in
+  let body =
+    match increment_expr with
+    | None -> body
+    | Some increment_expr -> Ast.Block [ body; Ast.Expression increment_expr ]
+  in
+  let condition_expr =
+    match condition_expr with
+    | None -> Ast.Literal (Boxed.Bool true)
+    | Some expr -> expr
+  in
+  let body = Ast.While (condition_expr, body) in
+  Ok
+    ( parser,
+      match initializer_stmt with
+      | None -> body
+      | Some initializer_stmt -> Ast.Block [ initializer_stmt; body ] )
+
+and while_stmt parser =
+  let* parser = consume parser Token.LParen "Expected '(' after while." in
+  let* parser, guard = expression parser in
+  let* parser =
+    consume parser Token.RParen "Expected ')' after the condition."
+  in
+  let* parser, body = statement parser in
+  Ok (parser, Ast.While (guard, body))
 
 and if_stmt parser =
   let* parser = consume parser Token.LParen "Expected '(' after if." in
   let* parser, guard = expression parser in
-  let* parser = consume parser Token.RParen "Expected ')' after the guard." in
+  let* parser =
+    consume parser Token.RParen "Expected ')' after the condition."
+  in
   let* parser, then_stmt = statement parser in
   let token = peek parser in
   let* parser, else_stmt =

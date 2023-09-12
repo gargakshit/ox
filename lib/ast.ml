@@ -8,7 +8,8 @@ and statement =
   | Expression of expr (* expr; *)
   | VarDeclaration of Token.t * expr (* var Token.Ident = <initializer> expr; *)
   | Block of statement list [@sexp.list] (* { ... } *)
-  | If of expr * statement * statement option (* if (guard) ... else ... *)
+  | If of expr * statement * statement option (* if (cond) ... else ... *)
+  | While of expr * statement (* while (cond) ... *)
 
 and expr =
   | Binary of expr * Token.t * expr

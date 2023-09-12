@@ -1,0 +1,41 @@
+print (42 * 42 - (42 / 42)) == 1763;
+print "Lol";
+print nil;
+print true == true;
+
+var a;
+var b = 42;
+print 420 - b;
+print (42 * 42 - (42 / 41));
+
+b = 41;
+print b;
+
+{
+  print b;
+  var b = 10;
+  print b;
+}
+
+if (true and true) {
+  print true;
+} else {
+  print false;
+}
+
+print true and "Lol";
+print false and "Lol";
+print true or "Lol";
+print false or "Lol";
+
+print "While";
+var i = 0;
+while (i < 10) {
+  print i;
+  i = i + 1;
+}
+
+print "For";
+for (var i = 0; i < 10; i = i + 1) {
+  print i;
+}

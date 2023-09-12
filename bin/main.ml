@@ -4,43 +4,22 @@ open Ox.Tokenizer
 open Ox.Util
 open Sexplib0
 
+let read_file file_name =
+  let channel = open_in_bin file_name in
+  let contents = really_input_string channel (in_channel_length channel) in
+  close_in channel;
+  contents
+
 let () =
-  let source =
-    "\n\
-    \    print (42 * 42 - (42 / 42)) == 1763;\n\
-    \    print \"Lol\";\n\
-    \    print nil;\n\
-    \    print true == true;\n\
-    \    var a;\n\
-    \    var b = 42;\n\
-    \    print 420 - b;\n\
-    \    print (42 * 42 - (42 / 41));\n\
-    \    b = 41;\n\
-    \    print b;\n\
-    \    {\n\
-    \        print b;\n\
-    \        var b = 10;\n\
-    \        print b;\n\
-    \    }\n\
-    \    if (true and true) {\n\
-    \        print true;\n\
-    \    } else {\n\
-    \        print false;\n\
-    \    }\n\
-    \    print true and \"Lol\";\n\
-    \    print false and \"Lol\";\n\
-    \    print true or \"Lol\";\n\
-    \    print false or \"Lol\";\n\
-    \  "
-  in
+  let source = read_file "./program.lox" in
   let () = prerr_string "Source: " in
   let () = prerr_endline source in
   let result =
     let* tokens = tokenize source in
     let tokens = List.map (fun (_, tok) -> tok) tokens in
     let* ast = parse tokens in
-    let () = prerr_endline "AST:" in
-    let () = prerr_endline (Sexp.to_string_hum (Ox.Ast.sexp_of_t ast)) in
+    prerr_endline "AST:";
+    prerr_endline (Sexp.to_string_hum (Ox.Ast.sexp_of_t ast));
     let* result = eval_program ast in
     Ok result
   in

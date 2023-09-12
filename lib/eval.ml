@@ -64,6 +64,14 @@ and eval_stmt env = function
   | Block stmts -> eval_block env stmts
   | If (guard, then_stmt, else_stmt) ->
       eval_if_stmt env guard then_stmt else_stmt
+  | While (cond, body) -> eval_while_stmt env cond body
+
+and eval_while_stmt env cond body =
+  let* cond' = eval_expr env cond in
+  if is_truthy cond' then
+    let* _ = eval_stmt env body in
+    eval_while_stmt env cond body
+  else Ok ()
 
 and eval_if_stmt env guard then_stmt else_stmt =
   let* guard = eval_expr env guard in
