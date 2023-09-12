@@ -1,1 +1,1 @@
-val parse : Token.t list -> (Expr.t, string) result
+val parse : Token.t list -> (Ast.t, string) result
